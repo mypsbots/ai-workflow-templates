@@ -1,8 +1,10 @@
-🤝 Contributing
+🤝 Contributing to AI Workflow Templates
 
 Thank you for your interest in contributing to AI Workflow Templates.
 
-We welcome contributions that improve the quality, usability, and value of this repository.
+This repository aims to provide high-quality, reusable workflow templates, automation blueprints, and AI-powered solutions for platforms such as n8n, Make.com, OpenAI, Claude, Gemini, OpenRouter, Grok, and other automation tools.
+
+Your contributions help make this repository more useful for the global automation community.
 
 ⸻
 
@@ -14,29 +16,31 @@ You can contribute by:
 * Improving existing workflows
 * Fixing bugs
 * Improving documentation
-* Sharing best practices
 * Reporting issues
-* Suggesting new automation ideas
+* Suggesting new workflow ideas
+* Adding screenshots and examples
+* Sharing automation best practices
 
 ⸻
 
-✅ Before You Contribute
+📋 Before You Contribute
 
 Please ensure that:
 
-* Workflows are tested before submission
-* Sensitive information such as API keys is removed
-* Documentation is included
-* File naming conventions are followed
-* Screenshots are provided when applicable
+* The workflow has been tested successfully.
+* No API keys, passwords, tokens, or secrets are included.
+* Documentation is included.
+* Screenshots are provided where applicable.
+* Naming conventions are followed.
+* The workflow serves a clear purpose.
 
 ⸻
 
 📁 Workflow Folder Structure
 
-Each workflow should contain:
+Each workflow should follow this structure:
 
-workflow.json (or blueprint)
+workflow.json (or blueprint.json)
 README.md
 screenshot.png
 config-example.json (optional)
@@ -54,15 +58,16 @@ n8n/
 
 🏷️ Naming Convention
 
-Use descriptive names.
+Use clear and descriptive names.
 
 Good Examples
 
 n8n-ai-blog-writer
 n8n-lead-generator
+n8n-customer-support-agent
 make-content-calendar
 make-instagram-automation
-make-customer-support-agent
+make-email-followup-system
 
 Avoid
 
@@ -71,47 +76,109 @@ workflow2
 test
 sample
 new-workflow
+automation
+myworkflow
 
 ⸻
 
-🔄 Submission Process
+📖 Documentation Requirements
 
-1. Fork the Repository
+Every workflow should include:
 
-Click the Fork button on GitHub.
+* ✅ README.md
+* ✅ Workflow File
+* ✅ Setup Instructions
+* ✅ Required Integrations
+* ✅ Screenshot
+* ✅ Configuration Notes
 
-2. Create a New Branch
+⸻
+
+📝 Workflow README Template
+
+Each workflow README should contain:
+
+Workflow Name
+Purpose
+Features
+Requirements
+Setup Instructions
+Configuration
+Example Usage
+Limitations
+Author
+License
+
+⸻
+
+🔐 Security Guidelines
+
+Never commit:
+
+* API Keys
+* Passwords
+* Access Tokens
+* Private Certificates
+* Database Credentials
+* Personal Information
+
+Use placeholder values instead.
+
+Example:
+
+{
+  "OPENAI_API_KEY": "YOUR_API_KEY_HERE",
+  "CLAUDE_API_KEY": "YOUR_API_KEY_HERE"
+}
+
+⸻
+
+🔄 Contribution Process
+
+Step 1: Fork the Repository
+
+Fork the repository to your GitHub account.
+
+Step 2: Create a New Branch
 
 git checkout -b feature/my-workflow
 
-3. Commit Your Changes
+Step 3: Make Your Changes
 
+Add or update workflows, documentation, or examples.
+
+Step 4: Commit Your Changes
+
+git add .
 git commit -m "Added AI blog writer workflow"
 
-4. Push Your Branch
+Step 5: Push Changes
 
 git push origin feature/my-workflow
 
-5. Open a Pull Request
+Step 6: Open a Pull Request
 
-Submit a Pull Request describing:
+Create a Pull Request describing:
 
 * What was added
-* What problem it solves
+* Why it was added
 * Any dependencies required
+* Testing performed
 
 ⸻
 
-✔️ Pull Request Checklist
+✅ Pull Request Checklist
 
 Before submitting a Pull Request, verify:
 
 * Workflow tested successfully
-* Documentation added
+* Documentation included
 * Screenshot included
-* No API keys or secrets included
+* No secrets included
 * Folder structure followed
 * Naming convention followed
+* README completed
+* Configuration documented
 
 ⸻
 
@@ -121,55 +188,55 @@ If you discover a bug or problem:
 
 1. Open a GitHub Issue
 2. Describe the issue clearly
-3. Include screenshots if available
-4. Provide steps to reproduce
-5. Include error messages when applicable
+3. Include screenshots if possible
+4. Include error messages
+5. Provide reproduction steps
+
+A good issue report helps resolve problems faster.
 
 ⸻
 
-🔐 Security Guidelines
+💡 Workflow Suggestions
 
-Never commit:
+Have an idea for a workflow?
 
-* API Keys
-* Access Tokens
-* Passwords
-* Private Credentials
-* Database Connection Strings
+Open a GitHub Issue and include:
 
-Use environment variables or placeholder values instead.
-
-Example:
-
-{
-  "OPENAI_API_KEY": "YOUR_API_KEY_HERE"
-}
+* Workflow Name
+* Business Use Case
+* Expected Outcome
+* Platforms Involved
+* AI Models Required
 
 ⸻
 
-📚 Documentation Standards
+🌟 Quality Standards
 
-Every workflow should include:
+We aim to maintain a repository of production-ready workflows.
 
-Item	Required
-README.md	✅
-Workflow File	✅
-Screenshot	✅
-Setup Instructions	✅
-Required Integrations	✅
+Preferred contributions:
+
+* Well documented
+* Easy to deploy
+* Reusable
+* Business focused
+* Secure
+* Tested
 
 ⸻
 
-🌟 Code of Conduct
+📜 Code of Conduct
 
 Please be respectful, constructive, and professional when interacting with other contributors.
 
-We aim to create a welcoming environment for everyone interested in AI and automation.
+We welcome contributors from all backgrounds and experience levels.
 
 ⸻
 
 🙏 Thank You
 
-Your contributions help make AI Workflow Templates a valuable resource for the global automation community.
+Thank you for helping improve AI Workflow Templates.
+
+Together we can build a valuable collection of AI-powered automation workflows for businesses, creators, agencies, and developers around the world.
 
 Happy Automating! 🚀
