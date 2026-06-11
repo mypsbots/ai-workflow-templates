@@ -214,11 +214,9 @@ See the LICENSE file for details.
 
 ## 🌐 Connect With Me
 
-Website: https://learnearntips.com
-
-YouTube: https://www.youtube.com/@quizstudioone
-
-Instagram: https://www.instagram.com/lemuran_personaldevstudio/
+Website: 
+https://learnearntips.com
+https://cleanhealthtips.com/
 
 ---
 
