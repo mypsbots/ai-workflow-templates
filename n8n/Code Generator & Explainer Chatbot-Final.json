@@ -1,0 +1,787 @@
+{
+  "name": "Code Generator & Explainer Chatbot-Final",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "=👋 **Welcome to the Code Generator Bot!**\n\nI can help you:\n• **Generate code** in Python, SQL, Terraform, Java, C#, and 10+ languages\n• **Explain code** - paste any code and I'll break it down\n• **Modify code** - refactor, optimize, or fix existing code\n\n📎 All generated code includes a **downloadable file** with the correct extension (.py, .js, .java, etc.)!\n\n**Examples:**\n• \"Generate a Python FastAPI REST API for user management\"\n• \"Create Terraform for AWS Lambda with API Gateway\"\n• \"Explain this code: ```python\\ndef fib(n): ...```\"",
+        "options": {
+          "responseMode": "responseNodes"
+        }
+      },
+      "id": "bd6df0f5-dd37-4d1a-8d0a-423cb72b7a75",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1136,
+        432
+      ],
+      "webhookId": "code-generator-chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// INPUT PROCESSOR\n// Validates user input and extracts code blocks for processing\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst chatInput = $input.first().json.chatInput || '';\nconst sessionId = $input.first().json.sessionId || $execution.id;\n\n// ─────────────────────────────────────────────────────────────────────────────\n// VALIDATION\n// ─────────────────────────────────────────────────────────────────────────────\nif (!chatInput || chatInput.trim().length < 5) {\n  return [{\n    json: {\n      isValid: false,\n      errorType: 'INVALID_INPUT',\n      error: 'Please provide a more detailed request (at least 5 characters).',\n      sessionId,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// CODE BLOCK EXTRACTION\n// ─────────────────────────────────────────────────────────────────────────────\nconst codeBlockRegex = /```(\\w+)?\\n?([\\s\\S]*?)```/g;\nconst codeBlocks = [];\nlet match;\n\nwhile ((match = codeBlockRegex.exec(chatInput)) !== null) {\n  codeBlocks.push({\n    language: match[1] || 'unknown',\n    code: match[2].trim()\n  });\n}\n\nconst providedCode = codeBlocks.length > 0 \n  ? codeBlocks.map(b => b.code).join('\\n\\n')\n  : null;\n\nconst detectedCodeLang = codeBlocks.length > 0 \n  ? codeBlocks[0].language \n  : null;\n\n// Clean message for intent analysis\nconst cleanMessage = chatInput.replace(/```[\\s\\S]*?```/g, '[CODE_BLOCK]').trim();\n\nreturn [{\n  json: {\n    isValid: true,\n    originalInput: chatInput,\n    cleanMessage,\n    providedCode,\n    detectedCodeLang,\n    hasCode: !!providedCode,\n    codeBlockCount: codeBlocks.length,\n    sessionId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "64390550-2ead-4708-8790-8f0adf0ca969",
+      "name": "Input Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "valid-check",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "406f741d-f1dc-4e9f-bae6-60a623ca24b5",
+      "name": "Validation Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// INTENT CLASSIFIER\n// Determines user intent (GENERATE/EXPLAIN/MODIFY) and target language\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst input = $input.first().json;\nconst message = input.cleanMessage.toLowerCase();\n\n// ─────────────────────────────────────────────────────────────────────────────\n// INTENT DETECTION\n// Priority order: EXPLAIN > MODIFY > DOCUMENT > GENERATE\n// ─────────────────────────────────────────────────────────────────────────────\nconst intentPatterns = [\n  {\n    intent: 'EXPLAIN',\n    patterns: ['explain', 'what does', 'how does', 'break down', 'analyze', \n               'understand', 'describe', 'walk through', 'tell me about'],\n    priority: 1\n  },\n  {\n    intent: 'MODIFY',\n    patterns: ['modify', 'change', 'update', 'fix', 'refactor', 'improve', \n               'optimize', 'enhance', 'add to', 'extend'],\n    priority: 2\n  },\n  {\n    intent: 'DOCUMENT',\n    patterns: ['document', 'documentation', 'readme', 'how to use', \n               'usage guide', 'api docs'],\n    priority: 3\n  },\n  {\n    intent: 'GENERATE',\n    patterns: ['generate', 'create', 'write', 'build', 'make', 'code', \n               'implement', 'develop', 'script', 'program', 'design'],\n    priority: 4\n  }\n];\n\n// Default intent based on whether code is provided\nlet detectedIntent = input.hasCode ? 'EXPLAIN' : 'GENERATE';\nlet intentConfidence = 'medium';\n\n// Check patterns\nfor (const { intent, patterns } of intentPatterns.sort((a, b) => a.priority - b.priority)) {\n  if (patterns.some(p => message.includes(p))) {\n    detectedIntent = intent;\n    intentConfidence = 'high';\n    break;\n  }\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// LANGUAGE DETECTION\n// ─────────────────────────────────────────────────────────────────────────────\nconst languagePatterns = {\n  python: {\n    keywords: ['python', 'django', 'flask', 'fastapi', 'pandas', 'numpy', \n               'pytorch', 'tensorflow', 'scikit', 'pip'],\n    codePatterns: [/def\\s+\\w+\\s*\\(/, /import\\s+\\w+/, /from\\s+\\w+\\s+import/]\n  },\n  sql: {\n    keywords: ['sql', 'mysql', 'postgresql', 'postgres', 'sqlite', 'query', \n               'database', 'select from', 'insert into'],\n    codePatterns: [/SELECT\\s+/i, /INSERT\\s+INTO/i, /CREATE\\s+TABLE/i]\n  },\n  plsql: {\n    keywords: ['pl/sql', 'plsql', 'oracle', 'stored procedure', 'trigger', \n               'package', 'cursor'],\n    codePatterns: [/CREATE\\s+(OR\\s+REPLACE\\s+)?PROCEDURE/i, /DECLARE\\s+/i, /BEGIN\\s+/i]\n  },\n  terraform: {\n    keywords: ['terraform', 'tf', 'infrastructure', 'iac', 'aws', 'azure', \n               'gcp', 'provider', 'resource'],\n    codePatterns: [/resource\\s+\"\\w+\"/, /provider\\s+\"\\w+\"/, /variable\\s+\"\\w+\"/]\n  },\n  yaml: {\n    keywords: ['yaml', 'yml', 'kubernetes', 'k8s', 'docker-compose', 'ansible', \n               'github actions', 'gitlab ci', 'helm'],\n    codePatterns: [/apiVersion:/, /kind:\\s*\\w+/, /metadata:/]\n  },\n  csharp: {\n    keywords: ['c#', 'csharp', '.net', 'dotnet', 'asp.net', 'entity framework', \n               'blazor', 'wpf', 'unity'],\n    codePatterns: [/using\\s+System/, /namespace\\s+\\w+/, /public\\s+class\\s+\\w+/]\n  },\n  java: {\n    keywords: ['java', 'spring', 'springboot', 'maven', 'gradle', 'hibernate', \n               'jpa', 'servlet', 'tomcat'],\n    codePatterns: [/public\\s+class\\s+\\w+/, /import\\s+java\\./, /@SpringBootApplication/]\n  },\n  javascript: {\n    keywords: ['javascript', 'js', 'node', 'nodejs', 'react', 'vue', 'angular', \n               'express', 'next.js', 'npm'],\n    codePatterns: [/function\\s+\\w+\\s*\\(/, /const\\s+\\w+\\s*=/, /=>\\s*\\{/]\n  },\n  typescript: {\n    keywords: ['typescript', 'ts', 'angular', 'nestjs', 'deno'],\n    codePatterns: [/interface\\s+\\w+/, /type\\s+\\w+\\s*=/, /:\\s*(string|number|boolean)/]\n  },\n  go: {\n    keywords: ['golang', 'go', 'gin', 'echo', 'fiber'],\n    codePatterns: [/package\\s+\\w+/, /func\\s+\\w+\\s*\\(/, /import\\s+\\(/]\n  },\n  rust: {\n    keywords: ['rust', 'cargo', 'tokio', 'actix', 'rocket'],\n    codePatterns: [/fn\\s+\\w+\\s*\\(/, /let\\s+mut\\s+/, /impl\\s+\\w+/]\n  },\n  bash: {\n    keywords: ['bash', 'shell', 'sh', 'script', 'linux', 'unix', 'terminal'],\n    codePatterns: [/#!/, /\\$\\{?\\w+\\}?/, /if\\s+\\[\\[?/]\n  },\n  powershell: {\n    keywords: ['powershell', 'ps1', 'windows script', 'cmdlet'],\n    codePatterns: [/\\$\\w+\\s*=/, /Get-\\w+/, /Set-\\w+/]\n  }\n};\n\n// Score each language\nlet detectedLanguage = 'python';\nlet languageConfidence = 'low';\nlet maxScore = 0;\n\nfor (const [lang, { keywords, codePatterns }] of Object.entries(languagePatterns)) {\n  let score = 0;\n  \n  // Check keywords in message\n  for (const keyword of keywords) {\n    if (message.includes(keyword.toLowerCase())) {\n      score += 2;\n    }\n  }\n  \n  // Check code patterns if code is provided\n  if (input.providedCode) {\n    for (const pattern of codePatterns) {\n      if (pattern.test(input.providedCode)) {\n        score += 3;\n      }\n    }\n  }\n  \n  if (score > maxScore) {\n    maxScore = score;\n    detectedLanguage = lang;\n    languageConfidence = score >= 4 ? 'high' : score >= 2 ? 'medium' : 'low';\n  }\n}\n\n// Use detected code language if confidence is low\nif (input.detectedCodeLang && input.detectedCodeLang !== 'unknown' && languageConfidence === 'low') {\n  detectedLanguage = input.detectedCodeLang;\n  languageConfidence = 'medium';\n}\n\nreturn [{\n  json: {\n    ...input,\n    intent: detectedIntent,\n    intentConfidence,\n    language: detectedLanguage,\n    languageConfidence\n  }\n}];"
+      },
+      "id": "8dc9ffff-b0b8-4621-ac47-d4ed6897bf9f",
+      "name": "Intent Classifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "explain-check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "EXPLAIN"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Explain"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "generate-check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "GENERATE"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Generate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "modify-check",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "MODIFY"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Modify"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "b468570f-4e4b-47f4-acf4-6f462722ac2a",
+      "name": "Intent Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -176,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert senior software engineer with 15+ years of experience. Generate production-ready, well-documented code following industry best practices.\n\n## MANDATORY REQUIREMENTS\n\n### Code Quality Standards\n1. Follow language-specific style guides:\n   - Python: PEP8, Google Python Style\n   - Java: Google Java Style\n   - JavaScript/TypeScript: Airbnb Style Guide\n   - C#: Microsoft C# Coding Conventions\n   - SQL: SQL Style Guide (uppercase keywords, proper indentation)\n   \n2. Naming Conventions:\n   - Use meaningful, descriptive names (no single letters except loop indices)\n   - Functions: verb_noun or verbNoun pattern\n   - Classes: PascalCase nouns\n   - Constants: UPPER_SNAKE_CASE\n\n3. Function Design:\n   - Single responsibility principle\n   - Maximum 40 lines per function\n   - Maximum 4 parameters (use objects for more)\n   - Pure functions where possible\n\n### Error Handling (CRITICAL)\n1. Use specific exception types, never catch generic Exception\n2. Provide meaningful error messages with context\n3. Log errors with appropriate severity levels\n4. Implement graceful degradation where applicable\n5. Always clean up resources (use try-finally or context managers)\n\n### Input Validation\n1. Validate all external inputs at system boundaries\n2. Use type hints/annotations where supported\n3. Check for null/undefined values\n4. Validate ranges, formats, and constraints\n5. Sanitize strings to prevent injection attacks\n\n### Logging\n1. Use proper logging frameworks (not print statements)\n2. Include correlation IDs for tracing\n3. Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL\n4. Never log sensitive data (passwords, tokens, PII)\n5. Use structured logging format\n\n### Documentation\n1. Every public function/method needs a docstring\n2. Document parameters with types and descriptions\n3. Document return values and exceptions\n4. Include usage examples in docstrings\n5. Explain \"why\" not just \"what\" in comments\n\n### Security (CRITICAL - NEVER VIOLATE)\n1. NEVER hardcode secrets, API keys, passwords, or tokens\n2. Use environment variables for all configuration\n3. Use parameterized queries for database operations\n4. Sanitize all user inputs\n5. Follow OWASP guidelines for web applications\n6. Implement rate limiting for APIs\n7. Use secure defaults (HTTPS, secure cookies, etc.)\n\n## OUTPUT FORMAT\n\nRespond with EXACTLY this structure:\n\n```[language]\n[Complete, runnable code with comprehensive comments]\n```\n\n## Quick Start\n[3-5 lines explaining how to run the code]\n\n## Dependencies\n[List all required packages with version constraints]",
+              "role": "assistant"
+            },
+            {
+              "content": "=LANGUAGE: {{ $json.language }}\nREQUEST: {{ $json.cleanMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 4096,
+          "temperature": 0.3
+        }
+      },
+      "id": "97612161-cf6b-4447-953c-d75c1a6c3121",
+      "name": "Code Generator Agent",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        112,
+        208
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "dcjGvaXMam0XLCsA",
+          "name": "Anthropic-mypsbots-account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert code educator who helps developers deeply understand code. Your explanations should clarify not just WHAT code does, but WHY it's written that way.\n\n## EXPLANATION STRUCTURE\n\n### 1. Overview (2-3 sentences)\n- What problem does this code solve?\n- What is the overall approach/algorithm?\n- What are the main components?\n\n### 2. Architecture & Design\n- Design patterns used (Singleton, Factory, Observer, etc.)\n- Architectural decisions and trade-offs\n- Module/class relationships\n\n### 3. Line-by-Line Breakdown\nFor each significant section:\n- **Purpose**: What it accomplishes\n- **Mechanism**: How it works step-by-step\n- **Rationale**: Why this approach was chosen\n- **Alternatives**: Other ways it could be done\n\n### 4. Data Flow Analysis\n- Input → Processing → Output path\n- Variable transformations\n- State changes\n- Side effects\n\n### 5. Complexity Analysis\n- Time complexity (Big O notation)\n- Space complexity\n- Performance considerations\n- Scalability implications\n\n### 6. Security Review\n- Potential vulnerabilities\n- Input validation assessment\n- Authentication/authorization considerations\n- Sensitive data handling\n\n### 7. Best Practices Assessment\n- What follows best practices\n- What could be improved\n- Suggested refactoring\n\n### 8. Usage Guide\n- Required dependencies\n- Environment setup\n- Example invocations\n- Expected outputs\n\n## FORMATTING GUIDELINES\n- Use clear markdown headers\n- Include code snippets when referencing specific parts\n- Use analogies for complex concepts\n- Highlight key insights with **bold**\n- Use tables for comparisons",
+              "role": "assistant"
+            },
+            {
+              "content": "=CODE TO EXPLAIN:\n```{{ $json.language }}\n{{ $json.providedCode }}\n```\n\nUSER CONTEXT: {{ $json.cleanMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 4096,
+          "temperature": 0.3
+        }
+      },
+      "id": "9fc0660f-1912-4fbc-8d20-3ff423e8ec94",
+      "name": "Code Explainer Agent",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        112,
+        400
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "dcjGvaXMam0XLCsA",
+          "name": "Anthropic-mypsbots-account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are an expert code refactoring specialist. Your task is to modify, improve, or fix existing code while maintaining its original functionality unless explicitly asked to change it.\n\n## MODIFICATION GUIDELINES\n\n1. **Preserve Intent**: Understand what the original code was trying to achieve\n2. **Minimal Changes**: Make the smallest changes necessary to achieve the goal\n3. **Backwards Compatible**: Unless explicitly asked, maintain API compatibility\n4. **Document Changes**: Clearly explain what was changed and why\n\n## OUTPUT FORMAT\n\nRespond with:\n\n### Changes Made\n[Bullet list of modifications]\n\n### Modified Code\n```[language]\n[Complete modified code]\n```\n\n### Explanation\n[Why these changes improve the code]\n\n### Testing Recommendations\n[How to verify the changes work correctly]",
+              "role": "assistant"
+            },
+            {
+              "content": "=ORIGINAL CODE:\n```{{ $json.language }}\n{{ $json.providedCode }}\n```\n\nMODIFICATION REQUEST: {{ $json.cleanMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 4096,
+          "temperature": 0.3
+        }
+      },
+      "id": "55591ce8-4573-4a9a-be59-240b25839fde",
+      "name": "Code Modifier Agent",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        112,
+        608
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "dcjGvaXMam0XLCsA",
+          "name": "Anthropic-mypsbots-account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "886c3a7f-3b5d-43ec-a1b4-4695b3500f76",
+      "name": "Merge Agent Outputs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        352,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// CODE VALIDATOR\n// Performs security checks and quality analysis on generated code\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst input = $input.first().json;\n\n// ─────────────────────────────────────────────────────────────────────────────\n// RETRIEVE ORIGINAL CONTEXT FROM INTENT CLASSIFIER\n// The Anthropic node only returns its response, so we need to get context\n// from earlier nodes in the workflow\n// ─────────────────────────────────────────────────────────────────────────────\nlet originalContext = {};\ntry {\n  originalContext = $('Intent Classifier').first().json || {};\n} catch (e) {\n  // If node reference fails, try to get from input\n  originalContext = input;\n}\n\nconst language = originalContext.language || input.language || 'python';\nconst intent = originalContext.intent || input.intent || 'GENERATE';\nconst sessionId = originalContext.sessionId || input.sessionId || '';\nconst providedCode = originalContext.providedCode || input.providedCode || '';\nconst originalInput = originalContext.originalInput || input.originalInput || '';\n\n// ─────────────────────────────────────────────────────────────────────────────\n// EXTRACT TEXT FROM ANTHROPIC RESPONSE\n// Handle multiple possible response structures from the Anthropic node\n// ─────────────────────────────────────────────────────────────────────────────\nlet generatedText = '';\n\n// Try different response paths (Anthropic node returns data in various formats)\nif (input.text) {\n  // Simplified output format (most common)\n  generatedText = input.text;\n} else if (input.content && Array.isArray(input.content)) {\n  // Raw API format: content is array of blocks\n  generatedText = input.content\n    .filter(block => block.type === 'text')\n    .map(block => block.text)\n    .join('\\n');\n} else if (input.message?.content) {\n  // Nested message format\n  if (Array.isArray(input.message.content)) {\n    generatedText = input.message.content\n      .filter(block => block.type === 'text')\n      .map(block => block.text)\n      .join('\\n');\n  } else if (typeof input.message.content === 'string') {\n    generatedText = input.message.content;\n  }\n} else if (input.output) {\n  generatedText = input.output;\n} else if (input.response) {\n  generatedText = input.response;\n} else if (typeof input === 'string') {\n  generatedText = input;\n}\n\n// Fallback: stringify and look for text patterns\nif (!generatedText && input) {\n  const inputStr = JSON.stringify(input);\n  const textMatch = inputStr.match(/\"text\":\\s*\"([^\"]+)\"/s);\n  if (textMatch) {\n    generatedText = textMatch[1].replace(/\\\\n/g, '\\n').replace(/\\\\\"/g, '\"');\n  }\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// EXTRACT CODE BLOCKS\n// ─────────────────────────────────────────────────────────────────────────────\nconst codeBlockRegex = /```(\\w+)?\\n([\\s\\S]*?)```/g;\nconst codeBlocks = [];\nlet match;\n\nwhile ((match = codeBlockRegex.exec(generatedText)) !== null) {\n  codeBlocks.push({\n    language: match[1] || language,\n    code: match[2].trim()\n  });\n}\n\nconst mainCode = codeBlocks.length > 0 ? codeBlocks[0].code : generatedText;\nconst codeLanguage = codeBlocks.length > 0 ? codeBlocks[0].language : language;\n\n// ─────────────────────────────────────────────────────────────────────────────\n// VALIDATION RESULTS STRUCTURE\n// ─────────────────────────────────────────────────────────────────────────────\nconst validation = {\n  hasCode: codeBlocks.length > 0 || mainCode.length > 20,\n  securityIssues: [],\n  warnings: [],\n  suggestions: [],\n  codeMetrics: {\n    lines: mainCode.split('\\n').length,\n    characters: mainCode.length,\n    functions: 0,\n    classes: 0,\n    complexity: 'low'\n  }\n};\n\n// ─────────────────────────────────────────────────────────────────────────────\n// SECURITY CHECKS (CRITICAL)\n// ─────────────────────────────────────────────────────────────────────────────\nconst securityPatterns = [\n  {\n    pattern: /password\\s*=\\s*[\"'][^\"']+[\"']/gi,\n    issue: '🔐 CRITICAL: Hardcoded password detected - use environment variables',\n    severity: 'critical'\n  },\n  {\n    pattern: /api[_-]?key\\s*=\\s*[\"'][A-Za-z0-9_-]{10,}[\"']/gi,\n    issue: '🔐 CRITICAL: Hardcoded API key detected - use environment variables',\n    severity: 'critical'\n  },\n  {\n    pattern: /secret\\s*=\\s*[\"'][^\"']+[\"']/gi,\n    issue: '🔐 CRITICAL: Hardcoded secret detected - use environment variables',\n    severity: 'critical'\n  },\n  {\n    pattern: /token\\s*=\\s*[\"'][A-Za-z0-9_-]{20,}[\"']/gi,\n    issue: '🔐 CRITICAL: Hardcoded token detected - use environment variables',\n    severity: 'critical'\n  },\n  {\n    pattern: /eval\\s*\\(/g,\n    issue: '⚠️ HIGH: eval() usage detected - potential code injection vulnerability',\n    severity: 'high'\n  },\n  {\n    pattern: /exec\\s*\\(/g,\n    issue: '⚠️ HIGH: exec() usage detected - validate input carefully',\n    severity: 'high'\n  },\n  {\n    pattern: /subprocess\\.(call|run|Popen)\\s*\\([^)]*shell\\s*=\\s*True/g,\n    issue: '⚠️ HIGH: Shell=True in subprocess - potential command injection',\n    severity: 'high'\n  },\n  {\n    pattern: /innerHTML\\s*=/g,\n    issue: '⚠️ HIGH: innerHTML assignment - potential XSS vulnerability',\n    severity: 'high'\n  },\n  {\n    pattern: /document\\.write\\s*\\(/g,\n    issue: '⚠️ HIGH: document.write() usage - potential XSS vulnerability',\n    severity: 'high'\n  }\n];\n\nfor (const { pattern, issue } of securityPatterns) {\n  if (pattern.test(mainCode)) {\n    validation.securityIssues.push(issue);\n  }\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// LANGUAGE-SPECIFIC CHECKS\n// ─────────────────────────────────────────────────────────────────────────────\n\n// Python\nif (codeLanguage === 'python') {\n  validation.codeMetrics.functions = (mainCode.match(/def\\s+\\w+\\s*\\(/g) || []).length;\n  validation.codeMetrics.classes = (mainCode.match(/class\\s+\\w+/g) || []).length;\n  \n  if (/except\\s*:/.test(mainCode)) {\n    validation.warnings.push('⚠️ Bare except clause - specify exception types');\n  }\n  if (!/if\\s+__name__\\s*==\\s*[\"']__main__[\"']/.test(mainCode) && /def\\s+main\\s*\\(/.test(mainCode)) {\n    validation.suggestions.push('💡 Consider adding `if __name__ == \"__main__\":` guard');\n  }\n  if (/print\\s*\\(/.test(mainCode) && validation.codeMetrics.lines > 30) {\n    validation.suggestions.push('💡 Consider using logging module instead of print()');\n  }\n}\n\n// SQL / PL/SQL\nif (codeLanguage === 'sql' || codeLanguage === 'plsql') {\n  if (/SELECT\\s+\\*\\s+FROM/i.test(mainCode)) {\n    validation.suggestions.push('💡 Specify columns instead of SELECT * for better performance');\n  }\n  if (/['\"]?\\s*\\+\\s*\\w+\\s*\\+\\s*['\"]?/.test(mainCode)) {\n    validation.securityIssues.push('🔐 CRITICAL: String concatenation in SQL - use parameterized queries');\n  }\n}\n\n// Terraform\nif (codeLanguage === 'terraform' || codeLanguage === 'tf') {\n  validation.codeMetrics.functions = (mainCode.match(/resource\\s+\"\\w+\"/g) || []).length;\n  \n  if (!/required_version/.test(mainCode) && mainCode.length > 50) {\n    validation.suggestions.push('💡 Add terraform required_version constraint');\n  }\n  if (/access_key\\s*=|secret_key\\s*=/.test(mainCode)) {\n    validation.securityIssues.push('🔐 CRITICAL: AWS credentials in Terraform - use environment variables or IAM roles');\n  }\n}\n\n// JavaScript / TypeScript\nif (codeLanguage === 'javascript' || codeLanguage === 'typescript') {\n  validation.codeMetrics.functions = (mainCode.match(/function\\s+\\w+|=>\\s*[{(]|async\\s+function/g) || []).length;\n  validation.codeMetrics.classes = (mainCode.match(/class\\s+\\w+/g) || []).length;\n  \n  if (/var\\s+/.test(mainCode)) {\n    validation.suggestions.push('💡 Use let/const instead of var for better scoping');\n  }\n  if (/==(?!=)/.test(mainCode)) {\n    validation.warnings.push('⚠️ Loose equality (==) used - consider strict equality (===)');\n  }\n}\n\n// Java\nif (codeLanguage === 'java') {\n  validation.codeMetrics.classes = (mainCode.match(/class\\s+\\w+/g) || []).length;\n  validation.codeMetrics.functions = (mainCode.match(/public\\s+(static\\s+)?\\w+\\s+\\w+\\s*\\(/g) || []).length;\n  \n  if (/System\\.out\\.println/.test(mainCode) && validation.codeMetrics.lines > 30) {\n    validation.suggestions.push('💡 Use a logging framework (SLF4J/Log4j) instead of System.out');\n  }\n}\n\n// C#\nif (codeLanguage === 'csharp') {\n  validation.codeMetrics.classes = (mainCode.match(/class\\s+\\w+/g) || []).length;\n  validation.codeMetrics.functions = (mainCode.match(/public\\s+(static\\s+)?(async\\s+)?\\w+\\s+\\w+\\s*\\(/g) || []).length;\n  \n  if (/Console\\.WriteLine/.test(mainCode) && validation.codeMetrics.lines > 30) {\n    validation.suggestions.push('💡 Use ILogger for logging in production applications');\n  }\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// COMPLEXITY ESTIMATION\n// ─────────────────────────────────────────────────────────────────────────────\nconst nestedLoops = (mainCode.match(/(for|while|foreach)[\\s\\S]*?(for|while|foreach)/g) || []).length;\nconst conditionals = (mainCode.match(/if|else|switch|case|\\?.*:/g) || []).length;\n\nif (nestedLoops > 2 || conditionals > 15) {\n  validation.codeMetrics.complexity = 'high';\n  validation.suggestions.push('💡 Consider refactoring to reduce complexity');\n} else if (nestedLoops > 0 || conditionals > 8) {\n  validation.codeMetrics.complexity = 'medium';\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// FINAL VALIDATION\n// ─────────────────────────────────────────────────────────────────────────────\nconst isValid = validation.hasCode && \n  validation.securityIssues.filter(i => i.includes('CRITICAL')).length === 0;\n\nreturn [{\n  json: {\n    // Original context from Intent Classifier\n    language,\n    intent,\n    sessionId,\n    providedCode,\n    originalInput,\n    // Code extraction results\n    code: mainCode,\n    codeLanguage,\n    allCodeBlocks: codeBlocks,\n    validation,\n    isValid,\n    generatedText\n  }\n}];"
+      },
+      "id": "efdb62ce-3f69-4144-a7b1-7cf292f19967",
+      "name": "Code Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// CODE FILE CREATOR\n// Creates downloadable files based on intent:\n// - GENERATE/MODIFY: Code file with appropriate extension (.py, .js, etc.)\n// - EXPLAIN: Text file with the explanation (.txt)\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst input = $input.first().json;\nconst intent = input.intent || 'GENERATE';\nconst language = input.codeLanguage || input.language || 'text';\nconst timestamp = Date.now();\n\n// ─────────────────────────────────────────────────────────────────────────────\n// DETERMINE FILE CONTENT BASED ON INTENT\n// ─────────────────────────────────────────────────────────────────────────────\nlet fileContent = '';\nlet extension = '.txt';\nlet mimeType = 'text/plain';\nlet baseFilename = '';\n\nif (intent === 'EXPLAIN') {\n  // For EXPLAIN: Create a text file with the full explanation\n  fileContent = input.generatedText || '';\n  extension = '.txt';\n  mimeType = 'text/plain';\n  baseFilename = 'code_explanation';\n  \n  // Add header to the explanation file\n  const header = `════════════════════════════════════════════════════════════════════════════════\n                         CODE EXPLANATION DOCUMENT\n════════════════════════════════════════════════════════════════════════════════\nGenerated: ${new Date().toISOString()}\nLanguage: ${language.charAt(0).toUpperCase() + language.slice(1)}\n════════════════════════════════════════════════════════════════════════════════\n\n`;\n  fileContent = header + fileContent;\n  \n} else {\n  // For GENERATE/MODIFY: Create a code file with the extracted code\n  fileContent = input.code || '';\n  \n  // If code is still empty, try to extract from generatedText\n  if (!fileContent && input.generatedText) {\n    const codeBlockRegex = /```(?:\\w+)?\\n([\\s\\S]*?)```/g;\n    const match = codeBlockRegex.exec(input.generatedText);\n    if (match) {\n      fileContent = match[1].trim();\n    } else {\n      fileContent = input.generatedText;\n    }\n  }\n  \n  baseFilename = intent === 'MODIFY' ? 'modified_code' : 'generated_code';\n  \n  // ─────────────────────────────────────────────────────────────────────────────\n  // LANGUAGE TO FILE EXTENSION MAPPING\n  // ─────────────────────────────────────────────────────────────────────────────\n  const extensionMap = {\n    python: '.py',\n    javascript: '.js',\n    typescript: '.ts',\n    java: '.java',\n    csharp: '.cs',\n    sql: '.sql',\n    plsql: '.sql',\n    terraform: '.tf',\n    yaml: '.yaml',\n    yml: '.yml',\n    go: '.go',\n    rust: '.rs',\n    bash: '.sh',\n    shell: '.sh',\n    sh: '.sh',\n    powershell: '.ps1',\n    php: '.php',\n    ruby: '.rb',\n    perl: '.pl',\n    scala: '.scala',\n    kotlin: '.kt',\n    swift: '.swift',\n    r: '.r',\n    matlab: '.m',\n    lua: '.lua',\n    groovy: '.groovy',\n    haskell: '.hs',\n    elixir: '.ex',\n    clojure: '.clj',\n    dart: '.dart',\n    cpp: '.cpp',\n    c: '.c',\n    'c++': '.cpp',\n    objectivec: '.m',\n    html: '.html',\n    css: '.css',\n    scss: '.scss',\n    sass: '.sass',\n    less: '.less',\n    json: '.json',\n    xml: '.xml',\n    markdown: '.md',\n    md: '.md',\n    dockerfile: 'Dockerfile',\n    makefile: 'Makefile',\n    text: '.txt'\n  };\n  \n  // ─────────────────────────────────────────────────────────────────────────────\n  // MIME TYPE MAPPING\n  // ─────────────────────────────────────────────────────────────────────────────\n  const mimeTypeMap = {\n    '.py': 'text/x-python',\n    '.js': 'application/javascript',\n    '.ts': 'application/typescript',\n    '.java': 'text/x-java-source',\n    '.cs': 'text/x-csharp',\n    '.sql': 'application/sql',\n    '.tf': 'text/plain',\n    '.yaml': 'application/x-yaml',\n    '.yml': 'application/x-yaml',\n    '.go': 'text/x-go',\n    '.rs': 'text/x-rust',\n    '.sh': 'application/x-sh',\n    '.ps1': 'application/x-powershell',\n    '.php': 'application/x-php',\n    '.rb': 'application/x-ruby',\n    '.pl': 'text/x-perl',\n    '.scala': 'text/x-scala',\n    '.kt': 'text/x-kotlin',\n    '.swift': 'text/x-swift',\n    '.r': 'text/x-r',\n    '.m': 'text/x-matlab',\n    '.lua': 'text/x-lua',\n    '.groovy': 'text/x-groovy',\n    '.hs': 'text/x-haskell',\n    '.ex': 'text/x-elixir',\n    '.clj': 'text/x-clojure',\n    '.dart': 'application/dart',\n    '.cpp': 'text/x-c++src',\n    '.c': 'text/x-csrc',\n    '.html': 'text/html',\n    '.css': 'text/css',\n    '.scss': 'text/x-scss',\n    '.sass': 'text/x-sass',\n    '.less': 'text/x-less',\n    '.json': 'application/json',\n    '.xml': 'application/xml',\n    '.md': 'text/markdown',\n    '.txt': 'text/plain',\n    'Dockerfile': 'text/plain',\n    'Makefile': 'text/plain'\n  };\n  \n  extension = extensionMap[language.toLowerCase()] || '.txt';\n  mimeType = mimeTypeMap[extension] || 'text/plain';\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// GENERATE FILENAME\n// ─────────────────────────────────────────────────────────────────────────────\nconst filename = extension.startsWith('.') \n  ? `${baseFilename}_${timestamp}${extension}`\n  : extension; // For special files like Dockerfile, Makefile\n\n// ─────────────────────────────────────────────────────────────────────────────\n// CREATE BINARY DATA\n// ─────────────────────────────────────────────────────────────────────────────\nconst binaryData = Buffer.from(fileContent, 'utf-8').toString('base64');\n\nreturn [{\n  json: {\n    ...input,\n    fileContent,\n    filename,\n    extension,\n    mimeType,\n    fileSize: fileContent.length,\n    fileSizeKB: Math.round(fileContent.length / 1024 * 100) / 100\n  },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: mimeType,\n      fileName: filename,\n      fileExtension: extension.replace('.', '')\n    }\n  }\n}];"
+      },
+      "id": "21486587-12d0-4636-93f3-6ba34e285c03",
+      "name": "Code File Creator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// RESPONSE FORMATTER\n// Creates polished, informative chat response with file attachment\n// Handles different output types based on intent:\n// - GENERATE/MODIFY: Code file with code preview\n// - EXPLAIN: Explanation text file with explanation preview\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst input = $input.first().json;\nconst binary = $input.first().binary;\nconst intent = input.intent || 'GENERATE';\nconst language = input.codeLanguage || input.language || 'text';\nconst code = input.code || '';\nconst generatedText = input.generatedText || '';\nconst fileContent = input.fileContent || '';\nconst validation = input.validation || {};\nconst filename = input.filename || 'output.txt';\nconst extension = input.extension || '.txt';\nconst fileSize = input.fileSizeKB || 0;\n\nlet response = '';\nconst langDisplay = language.charAt(0).toUpperCase() + language.slice(1);\n\n// ─────────────────────────────────────────────────────────────────────────────\n// HEADER\n// ─────────────────────────────────────────────────────────────────────────────\n\nif (intent === 'GENERATE') {\n  response += `✅ **Code Generated Successfully!**\\n\\n`;\n} else if (intent === 'EXPLAIN') {\n  response += `📖 **Code Explanation Ready!**\\n\\n`;\n} else if (intent === 'MODIFY') {\n  response += `🔧 **Code Modified Successfully!**\\n\\n`;\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// CONTENT BASED ON INTENT\n// ─────────────────────────────────────────────────────────────────────────────\n\nif (intent === 'EXPLAIN') {\n  // For EXPLAIN: Show explanation details and preview\n  response += `**Analyzed Language:** ${langDisplay}\\n`;\n  response += `**Explanation Length:** ${fileContent.split('\\n').length} lines\\n\\n`;\n  \n  // Show the full explanation in the chat (or truncated if very long)\n  const explanationLines = generatedText.split('\\n');\n  const maxPreviewLines = 50;\n  \n  if (explanationLines.length > maxPreviewLines) {\n    response += '### 📖 Explanation Preview\\n\\n';\n    response += explanationLines.slice(0, maxPreviewLines).join('\\n');\n    response += `\\n\\n*... (${explanationLines.length - maxPreviewLines} more lines - download the attached file for the complete explanation)*\\n\\n`;\n  } else {\n    response += '### 📖 Code Explanation\\n\\n';\n    response += generatedText;\n    response += '\\n\\n';\n  }\n  \n  // File attachment notice\n  response += '### 📎 Explanation Document Attached\\n';\n  response += `**Filename:** \\`${filename}\\`\\n`;\n  response += `**Format:** Text Document (.txt)\\n`;\n  response += `**Size:** ${fileSize} KB\\n\\n`;\n  response += 'Download the attached file for the complete explanation document!\\n\\n';\n  \n  // Next steps for EXPLAIN\n  response += '---\\n';\n  response += '**What\\'s next?**\\n';\n  response += '• Ask me to explain a specific part in more detail\\n';\n  response += '• Request modifications or improvements to the code\\n';\n  response += '• Generate similar code with different requirements\\n';\n  response += '• Ask about best practices or alternatives';\n  \n} else {\n  // For GENERATE/MODIFY: Show code metrics and preview\n  response += `**Language:** ${langDisplay}\\n`;\n  response += `**Lines:** ${validation.codeMetrics?.lines || code.split('\\n').length}\\n`;\n  if (validation.codeMetrics?.functions) {\n    response += `**Functions:** ${validation.codeMetrics.functions}\\n`;\n  }\n  if (validation.codeMetrics?.classes) {\n    response += `**Classes:** ${validation.codeMetrics.classes}\\n`;\n  }\n  if (validation.codeMetrics?.complexity) {\n    response += `**Complexity:** ${validation.codeMetrics.complexity}\\n`;\n  }\n  response += '\\n';\n  \n  // Validation alerts\n  if (validation.securityIssues?.length > 0) {\n    response += '### 🔐 Security Issues\\n';\n    validation.securityIssues.forEach(issue => {\n      response += `${issue}\\n`;\n    });\n    response += '\\n';\n  }\n  \n  if (validation.warnings?.length > 0) {\n    response += '### ⚠️ Warnings\\n';\n    validation.warnings.forEach(warning => {\n      response += `${warning}\\n`;\n    });\n    response += '\\n';\n  }\n  \n  if (validation.suggestions?.length > 0) {\n    response += '### 💡 Suggestions\\n';\n    validation.suggestions.forEach(suggestion => {\n      response += `${suggestion}\\n`;\n    });\n    response += '\\n';\n  }\n  \n  // Code preview\n  const codeLines = code.split('\\n');\n  const previewLines = 30;\n  const preview = codeLines.slice(0, previewLines).join('\\n');\n  const truncated = codeLines.length > previewLines;\n  \n  response += '### 📄 Code Preview\\n';\n  response += '```' + language + '\\n';\n  response += preview;\n  if (truncated) {\n    response += '\\n// ... (' + (codeLines.length - previewLines) + ' more lines - see attached file for full code)';\n  }\n  response += '\\n```\\n\\n';\n  \n  // File attachment notice\n  response += '### 📎 Code File Attached\\n';\n  response += `**Filename:** \\`${filename}\\`\\n`;\n  response += `**Extension:** \\`${extension}\\`\\n`;\n  response += `**Size:** ${fileSize} KB\\n\\n`;\n  response += 'Download the attached file to get the complete, ready-to-use code!\\n\\n';\n  \n  // Next steps for GENERATE/MODIFY\n  response += '---\\n';\n  response += '**What\\'s next?**\\n';\n  response += '• Ask me to explain any part of the code\\n';\n  response += '• Request modifications or improvements\\n';\n  response += '• Generate unit tests for this code\\n';\n  response += '• Create code for a different task\\n';\n  response += '• Ask about best practices or alternatives';\n}\n\n// Pass through binary data\nreturn [{\n  json: {\n    response,\n    sessionId: input.sessionId,\n    language,\n    intent,\n    filename,\n    extension\n  },\n  binary: binary\n}];"
+      },
+      "id": "8f27a2db-5138-4300-97f5-ce2d50bc587c",
+      "name": "Response Formatter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.response }}",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "id": "01fdee7b-75f7-46f0-b50f-5a401b7f2407",
+      "name": "Chat Response",
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════════════\n// ERROR HANDLER\n// Creates user-friendly error messages with recovery suggestions\n// ═══════════════════════════════════════════════════════════════════════════\n\nconst input = $input.first().json;\nconst error = input.error || 'An unexpected error occurred';\nconst errorType = input.errorType || 'UNKNOWN';\nconst sessionId = input.sessionId || '';\n\n// ─────────────────────────────────────────────────────────────────────────────\n// ERROR MESSAGES\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst errorMessages = {\n  INVALID_INPUT: {\n    title: 'Invalid Request',\n    message: 'I couldn\\'t understand your request.',\n    suggestions: [\n      'Provide more details about what you want to build',\n      'Mention the programming language (e.g., \"Python\", \"Java\")',\n      'For code explanations, paste your code in a code block'\n    ]\n  },\n  LLM_ERROR: {\n    title: 'Generation Error',\n    message: 'I encountered an issue while generating the code.',\n    suggestions: [\n      'Try simplifying your request',\n      'Break down complex requirements into smaller parts',\n      'Try again in a few moments'\n    ]\n  },\n  FILE_ERROR: {\n    title: 'File Generation Issue',\n    message: 'The code was generated but file creation failed.',\n    suggestions: [\n      'The code is still available in the response',\n      'You can copy the code directly from the preview',\n      'Try requesting the code again'\n    ]\n  },\n  TIMEOUT: {\n    title: 'Request Timeout',\n    message: 'The request took too long to process.',\n    suggestions: [\n      'Try a simpler request',\n      'Break your request into smaller parts',\n      'Try again in a few moments'\n    ]\n  },\n  UNKNOWN: {\n    title: 'Unexpected Error',\n    message: 'Something went wrong.',\n    suggestions: [\n      'Please try again',\n      'Rephrase your request',\n      'Contact support if the issue persists'\n    ]\n  }\n};\n\nconst errorInfo = errorMessages[errorType] || errorMessages.UNKNOWN;\n\n// ─────────────────────────────────────────────────────────────────────────────\n// BUILD RESPONSE\n// ─────────────────────────────────────────────────────────────────────────────\n\nlet response = `❌ **${errorInfo.title}**\\n\\n`;\nresponse += `${errorInfo.message}\\n\\n`;\n\nif (error && error !== errorInfo.message) {\n  response += `*Details: ${error}*\\n\\n`;\n}\n\nresponse += '**Tips to resolve:**\\n';\nerrorInfo.suggestions.forEach(suggestion => {\n  response += `• ${suggestion}\\n`;\n});\n\nresponse += '\\n**Example requests:**\\n';\nresponse += '• \"Generate a Python FastAPI REST API for user management\"\\n';\nresponse += '• \"Create Terraform code for AWS Lambda with API Gateway\"\\n';\nresponse += '• \"Explain this code: ```python\\\\ndef example(): ...```\"\\n';\n\nresponse += '\\n*If the problem persists, try simplifying your request or contact support.*';\n\nreturn [{\n  json: {\n    response,\n    isError: true,\n    errorType,\n    sessionId\n  }\n}];"
+      },
+      "id": "5e5d291b-625c-4cf8-b34d-2145ab3e9f65",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.response }}",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "id": "ec338329-78a9-404b-98e8-019118900695",
+      "name": "Error Chat Response",
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Chat Trigger\n**Entry Point**\n\nHosts the public chat interface. Users access the chatbot via the generated webhook URL.\n\n- Mode: Hosted Chat\n- Response: Using Response Nodes\n- Public: Yes (no auth required)",
+        "height": 180,
+        "width": 280
+      },
+      "id": "c1f8f173-331b-4fc6-98d7-39114155126d",
+      "name": "Note: Chat Trigger",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1264,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Input Processor\n**Validation & Extraction**\n\nValidates user input (min 5 chars) and extracts code blocks from markdown.\n\n- Extracts: ```language code```\n- Outputs: cleanMessage, providedCode, sessionId",
+        "height": 180,
+        "width": 280
+      },
+      "id": "750bd124-d1fc-4fb5-8be6-a61109f1c041",
+      "name": "Note: Input Processor",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1008,
+        224
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Validation Check\n**Router**\n\nRoutes valid inputs to Intent Classifier, invalid inputs to Error Handler.\n\n- True branch: Continue processing\n- False branch: Show error message",
+        "width": 280
+      },
+      "id": "bd625464-c97d-4dc0-867f-c406846fe69b",
+      "name": "Note: Validation Check",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -768,
+        224
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Intent Classifier\n**AI Intent Detection**\n\nDetects user intent and programming language.\n\n**Intents:** GENERATE, EXPLAIN, MODIFY\n**Languages:** Python, JS, Java, SQL, Terraform, C#, Go, Rust, and 25+ more",
+        "height": 180,
+        "width": 300
+      },
+      "id": "fe1672a3-83cf-4e52-b290-74f7fa4cafba",
+      "name": "Note: Intent Classifier",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -528,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Intent Router\n**Switch Node**\n\nRoutes to appropriate AI agent:\n\n- EXPLAIN → Explainer Agent\n- GENERATE → Generator Agent\n- MODIFY → Modifier Agent\n- Default → Generator Agent",
+        "height": 180,
+        "width": 260
+      },
+      "id": "6aa34677-a1f4-4a4b-b668-0ba2bf576e75",
+      "name": "Note: Intent Router",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -288,
+        128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Code Generator Agent\n**Claude AI - Generation**\n\nGenerates production-ready code:\n\n- Style guides (PEP8, Google)\n- Error handling & logging\n- Security best practices\n- Comprehensive docs",
+        "height": 180,
+        "width": 280
+      },
+      "id": "eebfa488-1985-48a9-a273-b2bf5be99d66",
+      "name": "Note: Code Generator",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Code Explainer Agent\n**Claude AI - Explanation**\n\nProvides detailed code analysis:\n\n- Overview & architecture\n- Line-by-line breakdown\n- Complexity analysis (Big O)\n- Security review",
+        "height": 180,
+        "width": 280
+      },
+      "id": "35196262-d113-40e4-978b-e6825a9468f7",
+      "name": "Note: Code Explainer",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Code Modifier Agent\n**Claude AI - Refactoring**\n\nModifies existing code:\n\n- Preserves original intent\n- Minimal changes only\n- Backwards compatible\n- Documents all changes",
+        "height": 180,
+        "width": 280
+      },
+      "id": "a9a8d4ca-fbcb-44af-9aba-23f7dec2fd13",
+      "name": "Note: Code Modifier",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Merge Agent Outputs\n**Combines Branches**\n\nMerges outputs from different agent branches into a single flow for validation.",
+        "height": 140,
+        "width": 260
+      },
+      "id": "769ae277-0e8e-4593-8246-c5fb1a73c289",
+      "name": "Note: Merge Outputs",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        240,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Code Validator\n**Security & Quality**\n\nPerforms security checks:\n\n- Hardcoded secrets detection\n- SQL injection patterns\n- XSS vulnerabilities\n- Language-specific checks",
+        "height": 180,
+        "width": 280
+      },
+      "id": "f805a824-36e4-4f5d-a5b3-64e8f4e635fd",
+      "name": "Note: Code Validator",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        480,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Code File Creator\n**Binary File Output**\n\nCreates downloadable code file:\n\n- Correct extension (.py, .js)\n- Proper MIME type\n- Base64 encoded binary\n- Supports 30+ languages",
+        "height": 180,
+        "width": 280
+      },
+      "id": "056fb33e-e670-4e6a-ba7c-824dfb786bd1",
+      "name": "Note: File Creator",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        720,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Response Formatter\n**Output Formatting**\n\nFormats final response:\n\n- Success/error header\n- Code metrics (lines, funcs)\n- Security warnings\n- Code preview (30 lines)",
+        "height": 180,
+        "width": 280
+      },
+      "id": "bed33dd5-ad32-4cba-a118-3899337a2557",
+      "name": "Note: Response Formatter",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        960,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Chat Response\n**Send to User**\n\nSends the formatted response with code file attachment back to the chat interface.",
+        "height": 140,
+        "width": 260
+      },
+      "id": "8fdc6f07-7963-42be-bcb9-626fad36e23c",
+      "name": "Note: Chat Response",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1200,
+        208
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Error Handler\n**User-Friendly Errors**\n\nGenerates helpful error messages:\n\n- Error type description\n- Recovery suggestions\n- Example valid requests",
+        "width": 280
+      },
+      "id": "60596ead-dd25-43b5-9cf8-197182f2d009",
+      "name": "Note: Error Handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -528,
+        640
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Error Chat Response\n**Send Error**\n\nSends the error message back to the chat interface.",
+        "height": 120,
+        "width": 260
+      },
+      "id": "38f63bac-11b8-4401-b615-a1876e47d815",
+      "name": "Note: Error Response",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -288,
+        640
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Input Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Processor": {
+      "main": [
+        [
+          {
+            "node": "Validation Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Check": {
+      "main": [
+        [
+          {
+            "node": "Intent Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Classifier": {
+      "main": [
+        [
+          {
+            "node": "Intent Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Router": {
+      "main": [
+        [
+          {
+            "node": "Code Explainer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code Modifier Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Explainer Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Modifier Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Agent Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Agent Outputs": {
+      "main": [
+        [
+          {
+            "node": "Code Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Validator": {
+      "main": [
+        [
+          {
+            "node": "Code File Creator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code File Creator": {
+      "main": [
+        [
+          {
+            "node": "Response Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Formatter": {
+      "main": [
+        [
+          {
+            "node": "Chat Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Error Chat Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5ebb8e49-3ba7-45d5-bdab-61521669e3a3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1bb1aba5865f699ec4fb43afe03d83dff1be99f6a6f4db3c24ca2407179e4c5c"
+  },
+  "id": "xX8prtVKmDiSDFYg",
+  "tags": []
+}
