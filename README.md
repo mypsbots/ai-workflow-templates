@@ -167,30 +167,6 @@ and start automating.
 
 ---
 
-## 📦 Template Standards
-
-Every workflow folder should contain:
-
-```text
-workflow.json
-README.md
-screenshot.png
-config-example.json
-```
-
-Example:
-
-```text
-n8n/ai-blog-writer/
-│
-├── workflow.json
-├── README.md
-├── screenshot.png
-└── config-example.json
-```
-
----
-
 ## 🔑 Supported AI Providers
 
 These workflow templates may use one or more of:
@@ -220,19 +196,6 @@ API credentials are never stored in this repository.
 ✅ AI-Powered Automation
 
 ✅ Suitable for Business Use
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome.
-
-To contribute:
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Submit a Pull Request
 
 ---
 
