@@ -80,7 +80,7 @@ This repository contains practical automation templates that help businesses, cr
 ## 📁 Repository Structure
 
 ```text
-AI-Automation-Templates/
+ai-workflow-templates/
 │
 ├── n8n/
 │   ├── ai-agents/
@@ -115,7 +115,7 @@ AI-Automation-Templates/
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AI-Automation-Templates.git
+git clone https://github.com/YOUR_USERNAME/ai-workflow-templates.git
 ```
 
 ### Step 2
@@ -123,7 +123,7 @@ git clone https://github.com/YOUR_USERNAME/AI-Automation-Templates.git
 Navigate to the repository:
 
 ```bash
-cd AI-Automation-Templates
+cd ai-workflow-templates
 ```
 
 ### Step 3
@@ -183,6 +183,7 @@ Depending on the workflow you may need:
 - OpenAI API Key
 - Claude API Key
 - Gemini API Key
+- Openrouter API Key
 - Airtable Account
 - Google Account
 - Make.com Subscription
