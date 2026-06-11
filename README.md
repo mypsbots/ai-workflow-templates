@@ -214,8 +214,10 @@ See the LICENSE file for details.
 
 ## 🌐 Connect With Me
 
-Website: 
+Blogs: 
 https://learnearntips.com
+
+Blogs:
 https://cleanhealthtips.com/
 
 ---
