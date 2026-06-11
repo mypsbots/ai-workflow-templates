@@ -1,28 +1,42 @@
-# 🚀 AI Automation Templates
+# 🚀 AI Workflow Templates
 
-> A curated collection of ready-to-use AI automation workflows, agents, and business process templates built with modern automation platforms.
+> A curated collection of AI-powered workflow templates, automation blueprints, and AI agent systems built using n8n, Make.com, OpenAI, Claude, Gemini, OpenRouter, Grok, APIs, and modern business automation tools.
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Maintained](https://img.shields.io/badge/Maintained-Yes-brightgreen)
-![Platform](https://img.shields.io/badge/Platform-n8n-orange)
-![Platform](https://img.shields.io/badge/Platform-Make.com-purple)
+![n8n](https://img.shields.io/badge/n8n-Supported-orange)
+![Make](https://img.shields.io/badge/Make.com-Supported-purple)
 ![AI](https://img.shields.io/badge/AI-Powered-blue)
 
 ---
 
-## 🎯 About This Repository
+## 🌟 About
 
-This repository contains practical automation templates that help businesses, creators, marketers, agencies, and entrepreneurs automate repetitive tasks using AI and modern workflow platforms.
+This repository contains practical, production-ready AI workflow templates designed to help:
 
-### Supported Platforms
+- Entrepreneurs
+- Small Businesses
+- Agencies
+- Content Creators
+- Marketers
+- E-commerce Sellers
+- AI Automation Specialists
+
+Build faster, automate smarter, and save countless hours of manual work.
+
+---
+
+## 🧰 Supported Platforms
 
 | Platform | Purpose |
 |-----------|----------|
 | n8n | Workflow Automation |
 | Make.com | No-Code Automation |
 | OpenAI | AI Content & Agents |
-| Claude | AI Reasoning |
+| Claude | Advanced Reasoning |
 | Gemini | AI Workflows |
+| OpenRouter | Multi-LLM Access |
+| Grok | AI Applications |
 | Airtable | Data Management |
 | Google Sheets | Data Processing |
 | APIs | Integrations |
@@ -30,48 +44,53 @@ This repository contains practical automation templates that help businesses, cr
 
 ---
 
-## 📂 Categories
+## 📂 Workflow Categories
 
-### ✍️ AI Content Creation
+### 🤖 AI Agents
+
+- Research Agents
+- Customer Support Agents
+- Knowledge Base Agents
+- Data Analysis Agents
+- Multi-Agent Systems
+
+### ✍️ Content Creation
 
 - Blog Writer
-- Social Media Generator
-- Newsletter Generator
-- YouTube Script Generator
-- SEO Content Automation
+- SEO Content Generator
+- Social Media Automation
+- Newsletter Creator
+- YouTube Content Generator
 
 ### 🎯 Lead Generation
 
 - Lead Collection
 - Lead Qualification
 - CRM Automation
-- Email Follow-Up Sequences
+- Prospect Enrichment
+- Follow-Up Sequences
 
 ### 🛒 E-Commerce
 
 - Product Research
 - Product Description Generator
+- Review Analysis
 - Customer Support Automation
 - Order Processing
-
-### 🤖 AI Agents
-
-- Research Agents
-- Knowledge Base Agents
-- Customer Support Agents
-- Data Analysis Agents
 
 ### 📊 Data Processing
 
 - Web Scraping
 - API Integrations
 - Database Synchronisation
-- Automated Reporting
+- Reporting Automation
+- Data Enrichment
 
 ### ⚡ Productivity
 
 - Task Automation
-- Notifications & Alerts
+- Notifications
+- Email Automation
 - File Processing
 - Workflow Orchestration
 
@@ -87,14 +106,16 @@ ai-workflow-templates/
 │   ├── content-creation/
 │   ├── ecommerce/
 │   ├── lead-generation/
-│   └── productivity/
+│   ├── productivity/
+│   └── data-processing/
 │
 ├── make-com/
 │   ├── ai-agents/
 │   ├── content-creation/
 │   ├── ecommerce/
 │   ├── lead-generation/
-│   └── productivity/
+│   ├── productivity/
+│   └── data-processing/
 │
 ├── docs/
 ├── examples/
@@ -110,85 +131,95 @@ ai-workflow-templates/
 
 ## 🚀 Getting Started
 
-### Step 1
-
-Clone the repository:
+### Clone Repository
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/ai-workflow-templates.git
 ```
 
-### Step 2
-
-Navigate to the repository:
+### Navigate to Repository
 
 ```bash
 cd ai-workflow-templates
 ```
 
-### Step 3
+### Select a Workflow
 
-Choose a template.
+Browse the categories and choose a workflow that fits your use case.
 
-### Step 4
+### Configure Credentials
 
-Follow the setup instructions provided in the template folder.
+Add your required:
+
+- API Keys
+- Database Connections
+- Webhooks
+- Third-Party Integrations
+
+### Deploy & Run
+
+Import the workflow into:
+
+- n8n
+- Make.com
+
+and start automating.
 
 ---
 
-## 📦 Template Format
+## 📦 Template Standards
 
-Each template folder contains:
+Every workflow folder should contain:
 
 ```text
-workflow.json / blueprint.json
+workflow.json
 README.md
 screenshot.png
 config-example.json
 ```
 
-### Example
+Example:
 
 ```text
-n8n/
-└── ai-blog-writer/
-    ├── workflow.json
-    ├── README.md
-    ├── screenshot.png
-    └── config-example.json
+n8n/ai-blog-writer/
+│
+├── workflow.json
+├── README.md
+├── screenshot.png
+└── config-example.json
 ```
+
+---
+
+## 🔑 Supported AI Providers
+
+These workflow templates may use one or more of:
+
+- OpenAI
+- Claude
+- Gemini
+- OpenRouter
+- Grok
+
+API credentials are never stored in this repository.
 
 ---
 
 ## 💡 Why Use These Templates?
 
-✅ Save hours of manual work
+✅ Save Development Time
 
-✅ Learn automation best practices
+✅ Learn Automation Best Practices
 
-✅ Accelerate project delivery
+✅ Production-Ready Workflows
 
-✅ Reuse proven workflows
+✅ Reusable Components
 
-✅ Easy to customise
+✅ Easy to Customise
 
-✅ Production-ready examples
+✅ AI-Powered Automation
 
----
-
-## 🔧 Requirements
-
-Depending on the workflow you may need:
-
-- OpenAI API Key
-- Claude API Key
-- Gemini API Key
-- Openrouter API Key
-- Airtable Account
-- Google Account
-- Make.com Subscription
-- n8n Instance
-- External APIs
+✅ Suitable for Business Use
 
 ---
 
@@ -196,7 +227,7 @@ Depending on the workflow you may need:
 
 Contributions are welcome.
 
-If you'd like to contribute:
+To contribute:
 
 1. Fork the repository
 2. Create a feature branch
@@ -213,17 +244,16 @@ See the LICENSE file for details.
 
 ---
 
-## 🌐 Connect With Me
+## 🌐 Resources
 
-Blogs: 
-https://learnearntips.com
+### Blogs
 
-Blogs:
-https://cleanhealthtips.com/
+- https://learnearntips.com
+- https://cleanhealthtips.com
 
 ---
 
-## ⭐ Support
+## ⭐ Support The Project
 
 If you find this repository useful:
 
@@ -231,8 +261,12 @@ If you find this repository useful:
 
 🍴 Fork the repository
 
-📢 Share it with others
+📢 Share it with your network
 
 ---
 
-**Powered by Lemuran**
+## 👨‍💻 Author
+
+Prakash Shanmugam
+
+Building AI, Automation, Data and Business Solutions.
